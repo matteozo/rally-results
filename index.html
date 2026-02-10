@@ -9,6 +9,14 @@
     table { border-collapse: collapse; margin-top: 20px; }
     th, td { border: 1px solid #ccc; padding: 6px 10px; }
     th { background: #eee; }
+    
+    td.best-time {
+    background: #c8f7c5;   /* verde chiaro molto visibile */
+    font-weight: 700;
+  }
+  td.total-col {
+    font-weight: 700;
+  }
   </style>
 </head>
 <body>
@@ -34,6 +42,7 @@
         <th>PS3</th>
         <th>PS4</th>
         <th>PS5</th>
+        <th>Totale</th>
       </tr>
     </thead>
     <tbody></tbody>
@@ -55,10 +64,24 @@ function login() {
 }
 
 function timeToMs(t) {
-  const [m, s] = t.split(":");
-  const [sec, ms] = s.split(".");
-  return (+m)*60000 + (+sec)*1000 + (+ms);
+  const s = (t ?? "").trim();
+  if (!s) return null; // vuoto = non presente
+
+  // atteso: mm:ss.mmm
+  const parts = s.split(":");
+  if (parts.length !== 2) return null;
+
+  const m = Number(parts[0]);
+  const secParts = parts[1].split(".");
+  if (secParts.length !== 2) return null;
+
+  const sec = Number(secParts[0]);
+  const ms = Number(secParts[1]);
+
+  if ([m, sec, ms].some(n => Number.isNaN(n))) return null;
+  return m * 60000 + sec * 1000 + ms;
 }
+
 
 function msToTime(ms) {
   const m = Math.floor(ms / 60000);
@@ -85,10 +108,7 @@ async function loadResults() {
   const iPs4 = idx("ps4");
   const iPs5 = idx("ps5");
 
-  const tbody = document.querySelector("#results tbody");
-  tbody.innerHTML = "";
-
-  let rowNum = 1;
+  const rows = [];
 
   for (let k = 1; k < lines.length; k++) {
     const r = lines[k].trim();
@@ -101,27 +121,79 @@ async function loadResults() {
 
     const driver = (cols[iDriver] ?? "").trim();
     const codriver = (cols[iCodriver] ?? "").trim();
-    const ps1 = (cols[iPs1] ?? "").trim();
-    const ps2 = (cols[iPs2] ?? "").trim();
-    const ps3 = (cols[iPs3] ?? "").trim();
-    const ps4 = (cols[iPs4] ?? "").trim();
-    const ps5 = (cols[iPs5] ?? "").trim();
+
+    const ps = [
+      (cols[iPs1] ?? "").trim(),
+      (cols[iPs2] ?? "").trim(),
+      (cols[iPs3] ?? "").trim(),
+      (cols[iPs4] ?? "").trim(),
+      (cols[iPs5] ?? "").trim(),
+    ];
+
+    const psMs = ps.map(timeToMs);
+
+    // quante PS completate?
+    const completedCount = psMs.filter(v => v !== null).length;
+
+    // totale = somma PS presenti
+    const totalMs = psMs.reduce((acc, v) => acc + (v ?? 0), 0);
+
+    // best = minimo tra PS presenti
+    const bestMs = psMs.reduce((best, v) => {
+      if (v === null) return best;
+      return (best === null || v < best) ? v : best;
+    }, null);
 
     const crew = codriver ? `${driver} / ${codriver}` : driver;
 
+    rows.push({
+      car,
+      crew,
+      ps,
+      psMs,
+      completedCount,
+      totalMs,
+      bestMs
+    });
+  }
+
+  // ORDINAMENTO:
+  // 1) più PS completate in alto
+  // 2) a parità, totale minore in alto
+  // 3) tie-break: numero auto (se numerico) o stringa
+  rows.sort((a, b) => {
+    if (b.completedCount !== a.completedCount) return b.completedCount - a.completedCount;
+    if (a.totalMs !== b.totalMs) return a.totalMs - b.totalMs;
+
+    const an = Number(a.car), bn = Number(b.car);
+    if (!Number.isNaN(an) && !Number.isNaN(bn)) return an - bn;
+    return String(a.car).localeCompare(String(b.car));
+  });
+
+  const tbody = document.querySelector("#results tbody");
+  tbody.innerHTML = "";
+
+  rows.forEach((e, i) => {
+    const totalText = e.completedCount > 0 ? msToTime(e.totalMs) : "";
+
+    // prepara le celle PS con highlight sul best
+    const psTds = e.ps.map((t, idxPs) => {
+      const ms = e.psMs[idxPs];
+      const isBest = (ms !== null && e.bestMs !== null && ms === e.bestMs);
+      return `<td class="${isBest ? "best-time" : ""}">${t}</td>`;
+    }).join("");
+
     tbody.innerHTML += `
       <tr>
-        <td>${rowNum++}</td>
-        <td>${car}</td>
-        <td>${crew}</td>
-        <td>${ps1}</td>
-        <td>${ps2}</td>
-        <td>${ps3}</td>
-        <td>${ps4}</td>
-        <td>${ps5}</td>
+        <td>${i + 1}</td>
+        <td>${e.car}</td>
+        <td>${e.crew}</td>
+        ${psTds}
+        <td class="total-col">${totalText}</td>
       </tr>`;
-  }
+  });
 }
+
 </script>
 
 </body>
