@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <title>Risultati Rally</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 30px; }
+    #content { display: none; }
+    table { border-collapse: collapse; margin-top: 20px; }
+    th, td { border: 1px solid #ccc; padding: 6px 10px; }
+    th { background: #eee; }
+  </style>
+</head>
+<body>
+
+<h2>Accesso risultati gara</h2>
+
+<div id="login">
+  <input type="password" id="password" placeholder="Password">
+  <button onclick="login()">Accedi</button>
+  <p id="error" style="color:red;"></p>
+</div>
+
+<div id="content">
+  <h2>Tempi test</h2>
+  <table id="results">
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Numero</th>
+        <th>Equipaggio</th>
+        <th>PS1</th>
+        <th>PS2</th>
+        <th>PS3</th>
+        <th>PS4</th>
+        <th>PS5</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+</div>
+
+<script>
+const PASSWORD = "rallytest123"; // <-- cambia qui
+
+function login() {
+  const pw = document.getElementById("password").value;
+  if (pw === PASSWORD) {
+    document.getElementById("login").style.display = "none";
+    document.getElementById("content").style.display = "block";
+    loadResults();
+  } else {
+    document.getElementById("error").innerText = "Password errata";
+  }
+}
+
+function timeToMs(t) {
+  const [m, s] = t.split(":");
+  const [sec, ms] = s.split(".");
+  return (+m)*60000 + (+sec)*1000 + (+ms);
+}
+
+function msToTime(ms) {
+  const m = Math.floor(ms / 60000);
+  const s = Math.floor((ms % 60000) / 1000);
+  const mm = ms % 1000;
+  return `${m}:${String(s).padStart(2,'0')}.${String(mm).padStart(3,'0')}`;
+}
+
+async function loadResults() {
+  const url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vT_iuC5NWc77IJvhRwJz9j-WS8k5s05SSGQ4u7caOd9yRNcqa1JNDzc-D4Witqbjsd_oAGqo_rgSp1H/pub?gid=0&single=true&output=csv";
+  const res = await fetch(url);
+  const text = await res.text();
+
+  const lines = text.trim().split(/\r?\n/);
+  const header = lines[0].split(",").map(h => h.trim().toLowerCase());
+  const idx = (name) => header.indexOf(name);
+
+  const iCar = idx("car");
+  const iDriver = idx("driver");
+  const iCodriver = idx("codriver");
+  const iPs1 = idx("ps1");
+  const iPs2 = idx("ps2");
+  const iPs3 = idx("ps3");
+  const iPs4 = idx("ps4");
+  const iPs5 = idx("ps5");
+
+  const tbody = document.querySelector("#results tbody");
+  tbody.innerHTML = "";
+
+  let rowNum = 1;
+
+  for (let k = 1; k < lines.length; k++) {
+    const r = lines[k].trim();
+    if (!r) continue;
+
+    const cols = r.split(",");
+
+    const car = (cols[iCar] ?? "").trim();
+    if (!car) continue;
+
+    const driver = (cols[iDriver] ?? "").trim();
+    const codriver = (cols[iCodriver] ?? "").trim();
+    const ps1 = (cols[iPs1] ?? "").trim();
+    const ps2 = (cols[iPs2] ?? "").trim();
+    const ps3 = (cols[iPs3] ?? "").trim();
+    const ps4 = (cols[iPs4] ?? "").trim();
+    const ps5 = (cols[iPs5] ?? "").trim();
+
+    const crew = codriver ? `${driver} / ${codriver}` : driver;
+
+    tbody.innerHTML += `
+      <tr>
+        <td>${rowNum++}</td>
+        <td>${car}</td>
+        <td>${crew}</td>
+        <td>${ps1}</td>
+        <td>${ps2}</td>
+        <td>${ps3}</td>
+        <td>${ps4}</td>
+        <td>${ps5}</td>
+      </tr>`;
+  }
+}
+</script>
+
+</body>
+</html>
